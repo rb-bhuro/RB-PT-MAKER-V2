@@ -271,12 +271,29 @@
 <div id="loginScreen" class="login-body" style="min-height:100vh;display:flex;">
     <div class="login-box">
         <h1>RAM BHAKT ESPORTS</h1>
-        <p><i class="fas fa-shield-alt" style="color:var(--green);"></i> Admin Panel</p>
-        <input type="email" id="loginEmail" placeholder="Firebase Auth email" autocomplete="email">
-        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+        <div id="loginModeBadge" style="font-size:12px;padding:4px 10px;border-radius:20px;display:inline-block;margin-bottom:12px;font-weight:600;"></div>
+        <div id="loginFirebaseFields">
+            <input type="email" id="loginEmail" placeholder="Firebase Auth email" autocomplete="email">
+            <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+        </div>
+        <div id="loginLocalFields" style="display:none;">
+            <input type="password" id="localPassword" placeholder="Local admin password" autocomplete="off">
+        </div>
         <button onclick="handleLogin()"><i class="fas fa-lock-open"></i> Sign In</button>
-        <div class="login-error" id="loginError">Login failed. Check credentials or configure Firebase first.</div>
-        <p style="font-size:11px;color:var(--text-soft);margin-top:12px;margin-bottom:0;"><i class="fas fa-info-circle"></i> Uses Firebase Auth when configured; falls back to local password otherwise.</p>
+        <div class="login-error" id="loginError">Login failed. Check credentials.</div>
+        <div id="loginFirebaseSetup" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;display:none;">
+            <p style="font-size:12px;color:var(--text-soft);margin-bottom:8px;"><i class="fas fa-cloud"></i> First time? Enter Firebase credentials to enable secure Auth:</p>
+            <input type="text" id="loginApiKey" placeholder="Firebase API Key" style="font-size:13px;">
+            <input type="text" id="loginProjectId" placeholder="Project ID" style="font-size:13px;">
+            <input type="text" id="loginDbUrl" placeholder="Database URL" style="font-size:13px;">
+            <button class="btn-gray btn-sm" onclick="saveLoginFirebaseConfig()" style="margin-top:4px;width:100%;">Save &amp; use Firebase Auth</button>
+            <p style="font-size:11px;color:var(--text-soft);margin-top:8px;margin-bottom:0;">
+                <i class="fas fa-info-circle"></i> After saving, refresh and sign in with your Firebase Auth email.
+            </p>
+        </div>
+        <p id="loginLocalHint" style="font-size:11px;color:var(--text-soft);margin-top:12px;margin-bottom:0;display:none;">
+            <i class="fas fa-info-circle"></i> Using local password until Firebase is configured.
+        </p>
     </div>
 </div>
 
@@ -524,7 +541,41 @@
         pushConfigToFirebase(config);
     }
 
-    // ─── Login (Firebase Auth with local fallback) ─────────────
+    // ─── Login Screen Mode Detection ───────────────────────────
+    function updateLoginMode() {
+        const fbCfg = getFirebaseConfig();
+        const hasFirebase = !!(fbCfg && fbCfg.apiKey);
+        document.getElementById('loginFirebaseFields').style.display = hasFirebase ? '' : 'none';
+        document.getElementById('loginLocalFields').style.display = hasFirebase ? 'none' : '';
+        document.getElementById('loginFirebaseSetup').style.display = hasFirebase ? 'none' : '';
+        document.getElementById('loginLocalHint').style.display = hasFirebase ? 'none' : '';
+        const badge = document.getElementById('loginModeBadge');
+        if (hasFirebase) {
+            badge.textContent = ' Firebase Auth';
+            badge.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:20px;display:inline-block;margin-bottom:12px;font-weight:600;background:rgba(0,208,132,0.1);color:#008a5c;border:1px solid rgba(0,208,132,0.2);';
+        } else {
+            badge.textContent = ' Local Password (default: admin)';
+            badge.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:20px;display:inline-block;margin-bottom:12px;font-weight:600;background:rgba(255,51,102,0.06);color:#cc0033;border:1px solid rgba(255,51,102,0.15);';
+        }
+    }
+
+    function saveLoginFirebaseConfig() {
+        const apiKey = document.getElementById('loginApiKey').value.trim();
+        const projectId = document.getElementById('loginProjectId').value.trim();
+        const databaseURL = document.getElementById('loginDbUrl').value.trim();
+        if (!apiKey || !projectId || !databaseURL) {
+            document.getElementById('loginError').textContent = 'Fill all three Firebase fields.';
+            document.getElementById('loginError').style.display = 'block';
+            return;
+        }
+        localStorage.setItem(FIREBASE_KEY, JSON.stringify({ apiKey, projectId, databaseURL }));
+        const errEl = document.getElementById('loginError');
+        errEl.textContent = 'Firebase saved! Refresh the page and sign in with your Firebase Auth email.';
+        errEl.style.cssText = 'color:#008a5c;font-size:13px;margin-top:8px;display:block;font-weight:600;';
+        updateLoginMode();
+    }
+
+    // ─── Login ─────────────────────────────────────────────────
     function enterPanel() {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('adminPanel').style.display = 'block';
@@ -533,6 +584,10 @@
         fillFirebaseInputs();
         const fbCfg = getFirebaseConfig();
         if (fbCfg) updateSyncStatus(true);
+        // Push local config to Firebase now that we're authenticated
+        if (firebaseApp && firebase.auth(firebaseApp).currentUser) {
+            pushConfigToFirebase(getAdminConfig());
+        }
     }
 
     function getOrCreateAdminApp(fbCfg) {
@@ -544,14 +599,21 @@
     }
 
     function handleLogin() {
-        const email = document.getElementById('loginEmail').value.trim();
-        const pwd = document.getElementById('loginPassword').value;
         const errEl = document.getElementById('loginError');
         errEl.style.display = 'none';
 
-        // Try Firebase Auth if configured
         const fbCfg = getFirebaseConfig();
-        if (fbCfg && fbCfg.apiKey) {
+        const hasFirebase = !!(fbCfg && fbCfg.apiKey);
+
+        if (hasFirebase) {
+            // Firebase Auth path
+            const email = document.getElementById('loginEmail').value.trim();
+            const pwd = document.getElementById('loginPassword').value;
+            if (!email || !pwd) {
+                errEl.textContent = 'Enter email and password.';
+                errEl.style.display = 'block';
+                return;
+            }
             const app = getOrCreateAdminApp(fbCfg);
             firebase.auth(app).signInWithEmailAndPassword(email, pwd)
                 .then(() => {
@@ -566,13 +628,14 @@
             return;
         }
 
-        // Fallback: local password
+        // Local password fallback
+        const pwd = document.getElementById('localPassword').value;
         const config = getAdminConfig();
         if (pwd === config.password) {
             sessionStorage.setItem(SESSION_KEY, '1');
             enterPanel();
         } else {
-            errEl.textContent = 'Incorrect password. Try again.';
+            errEl.textContent = 'Incorrect password. Default is "admin".';
             errEl.style.display = 'block';
         }
     }
@@ -581,6 +644,9 @@
         if (e.key === 'Enter') handleLogin();
     });
     document.getElementById('loginEmail').addEventListener('keydown', e => {
+        if (e.key === 'Enter') handleLogin();
+    });
+    document.getElementById('localPassword').addEventListener('keydown', e => {
         if (e.key === 'Enter') handleLogin();
     });
 
@@ -594,8 +660,10 @@
         document.getElementById('loginScreen').style.display = 'flex';
         document.getElementById('loginPassword').value = '';
         document.getElementById('loginEmail').value = '';
+        document.getElementById('localPassword').value = '';
         document.getElementById('loginError').style.display = 'none';
         document.body.className = 'login-body';
+        updateLoginMode();
     }
 
     // Auto-login: check sessionStorage or persisted Firebase Auth
@@ -604,6 +672,7 @@
             enterPanel();
             return;
         }
+        updateLoginMode();
         const fbCfg = getFirebaseConfig();
         if (fbCfg && fbCfg.apiKey) {
             const app = getOrCreateAdminApp(fbCfg);

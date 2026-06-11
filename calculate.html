@@ -1,0 +1,1889 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Esports Standings Calculator Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --neon-green: #00d084;
+            --neon-pink: #ff3366;
+            --neon-purple: #7c3aed;
+            --bg-light: #f4f6fb;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-dark: #1a1a2e;
+            --text-soft: #4a4a6a;
+            --border-light: rgba(0, 0, 0, 0.06);
+        }
+
+        body {
+            font-family: Segoe UI, Roboto, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            text-align: center;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 30%, rgba(0,208,132,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 70%, rgba(124,58,237,0.06) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        h1 {
+            background: linear-gradient(135deg, var(--neon-green), var(--neon-purple), var(--neon-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 20px 10px;
+            font-size: clamp(24px, 5vw, 36px);
+            font-weight: 900;
+            letter-spacing: 1px;
+            filter: drop-shadow(0 2px 4px rgba(0,208,132,0.15));
+        }
+        h2 {
+            color: var(--text-dark);
+            margin-bottom: 12px;
+            font-size: clamp(20px, 4vw, 28px);
+            font-weight: 700;
+        }
+        .section {
+            margin: 20px auto;
+            max-width: 1200px;
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.04), 0 0 30px rgba(0, 208, 132, 0.04);
+            border: 1px solid var(--border-light);
+            backdrop-filter: blur(12px);
+        }
+        .hidden { display: none; }
+        input, select, textarea {
+            font-size: 16px;
+            padding: 10px 14px;
+            margin: 8px;
+            border-radius: 8px;
+            border: 2px solid #e0e4ec;
+            background: #fff;
+            color: var(--text-dark);
+            width: 100%;
+            max-width: 300px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--neon-green);
+            box-shadow: 0 0 0 3px rgba(0, 208, 132, 0.1);
+        }
+        button {
+            font-size: 14px;
+            padding: 11px 20px;
+            margin: 6px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: none;
+            background: linear-gradient(135deg, #e8ecf4, #dce0e8);
+            color: var(--text-dark);
+            transition: all 0.25s ease;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: inherit;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .overallBtn {
+            background: linear-gradient(135deg, var(--neon-green), #00b894);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 208, 132, 0.25);
+        }
+        .overallBtn:hover {
+            box-shadow: 0 6px 25px rgba(0, 208, 132, 0.35);
+        }
+        .resetAllBtn, .resetBtn, .danger-btn {
+            background: linear-gradient(135deg, var(--neon-pink), #cc0033);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255, 51, 102, 0.25);
+        }
+        .resetAllBtn:hover, .resetBtn:hover, .danger-btn:hover {
+            box-shadow: 0 6px 25px rgba(255, 51, 102, 0.35);
+        }
+        .edit-btn {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #fff;
+            font-size: 18px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+        }
+        .delete-btn {
+            background: linear-gradient(135deg, var(--neon-pink), #cc0033);
+            color: #fff;
+            font-size: 20px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(255, 51, 102, 0.3);
+        }
+        .edit-btn:hover, .delete-btn:hover {
+            transform: scale(1.15);
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border-light);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid var(--border-light);
+            text-align: center;
+            font-size: 15px;
+            white-space: nowrap;
+            color: var(--text-dark);
+        }
+        th {
+            background: linear-gradient(135deg, var(--neon-purple), var(--neon-green));
+            color: #fff;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        td input, td select {
+            margin: 0;
+            font-size: 14px;
+            padding: 6px 10px;
+            max-width: 140px;
+        }
+        td input[type="number"] {
+            max-width: 70px;
+            text-align: center;
+        }
+        canvas {
+            background: #fff;
+            border-radius: 12px;
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+        }
+        #matchBtns {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 16px;
+            align-items: center;
+        }
+        #matchBtns button {
+            margin: 0;
+        }
+        #currentMatchTag {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--neon-purple);
+            letter-spacing: 1px;
+        }
+        #pasteTeamsTextarea {
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        #parsePasteBtn {
+            background: linear-gradient(135deg, var(--neon-green), #00b894);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 208, 132, 0.2);
+        }
+        #galleryContainer {
+            position: relative;
+            width: 100%;
+            max-width: 768px;
+            height: 768px;
+            margin: 20px auto;
+            overflow: hidden;
+            border-radius: 16px;
+            background: #f0f2f5;
+            display: none;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06), 0 0 30px rgba(0, 208, 132, 0.05);
+            border: 1px solid var(--border-light);
+        }
+        #leaderboardCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease;
+        }
+        #galleryNav {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 16px;
+            border-radius: 50px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            backdrop-filter: blur(8px);
+        }
+        #prevImage, #nextImage {
+            background: var(--neon-green);
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            font-size: 20px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            margin: 0;
+            box-shadow: 0 2px 8px rgba(0, 208, 132, 0.3);
+        }
+        #prevImage:hover, #nextImage:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 16px rgba(0, 208, 132, 0.4);
+        }
+        #imageCounter {
+            color: var(--text-dark);
+            font-weight: 700;
+            padding: 0 12px;
+            font-size: 14px;
+            min-width: 50px;
+            text-align: center;
+        }
+        #selectAndDownload {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, var(--neon-green), #00b894);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0, 208, 132, 0.25);
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        #selectAndDownload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 208, 132, 0.35);
+        }
+        #downloadImageBtn {
+            background: linear-gradient(135deg, var(--neon-green), #00b894);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 208, 132, 0.2);
+        }
+
+        .app-shell {
+            width: min(1240px, calc(100% - 28px));
+            margin: 0 auto 32px;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin: 18px auto 6px;
+            padding: 16px 22px;
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            background: var(--card-bg);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.03);
+            text-align: left;
+            backdrop-filter: blur(12px);
+        }
+        .brand-kicker {
+            margin: 0 0 4px;
+            color: var(--neon-green);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+        .topbar h1 {
+            margin: 0;
+            -webkit-text-fill-color: initial;
+            background: none;
+            filter: none;
+            color: var(--text-dark);
+            font-size: clamp(18px, 3vw, 26px);
+        }
+        .home-link {
+            color: var(--neon-green);
+            text-decoration: none;
+            font-weight: 800;
+            border: 2px solid rgba(0, 208, 132, 0.3);
+            border-radius: 10px;
+            padding: 10px 16px;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .home-link:hover {
+            background: var(--neon-green);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 208, 132, 0.25);
+        }
+        .tournament-grid {
+            display: grid;
+            grid-template-columns: minmax(260px, 380px) 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+        .tournament-panel {
+            text-align: left;
+        }
+        .tournament-panel h2,
+        .tournament-list-panel h2 {
+            margin-top: 0;
+        }
+        .field-label {
+            display: block;
+            margin: 0 8px 4px;
+            color: var(--text-soft);
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .button-row button {
+            margin: 0;
+        }
+        .secondary-btn {
+            background: linear-gradient(135deg, #e8ecf4, #dce0e8);
+            color: var(--text-dark);
+            box-shadow: none;
+        }
+        .secondary-btn:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+        .tournament-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 12px;
+        }
+        .tournament-card {
+            padding: 16px;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            background: #fff;
+            text-align: left;
+            transition: all 0.25s ease;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+        }
+        .tournament-card:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+        }
+        .tournament-card.active {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 0 2px rgba(0, 208, 132, 0.08);
+        }
+        .tournament-card h3 {
+            margin: 0 0 8px;
+            color: var(--text-dark);
+            font-size: 17px;
+        }
+        .tournament-meta {
+            color: var(--text-soft);
+            font-size: 13px;
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        .tournament-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .tournament-actions button {
+            margin: 0;
+            padding: 8px 14px;
+            font-size: 12px;
+            letter-spacing: 0;
+        }
+        .tournament-actions button:not(.danger-btn):not(.secondary-btn) {
+            background: linear-gradient(135deg, var(--neon-purple), #6d28d9);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+        }
+        .tournament-actions button:not(.danger-btn):not(.secondary-btn):hover {
+            box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+        }
+        #activeTournamentName {
+            color: var(--neon-purple);
+            font-weight: 800;
+            margin-bottom: 14px;
+            font-size: 15px;
+        }
+        #teamListInputs input {
+            display: inline-block;
+            margin: 4px 6px;
+        }
+        #teamListInputs br {
+            display: none;
+        }
+
+        /* Custom Animated Pop-up */
+        .custom-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: #fff;
+            color: var(--text-dark);
+            padding: 24px 32px;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.1), 0 0 30px rgba(0, 208, 132, 0.08);
+            border: 1px solid var(--border-light);
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            z-index: 10000;
+            opacity: 0;
+            transition: all 0.3s ease-out;
+            max-width: 400px;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        .custom-popup.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .custom-popup.hide {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+            backdrop-filter: blur(2px);
+        }
+        .popup-overlay.show {
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .section { margin: 16px; padding: 18px; max-width: 95%; }
+            table { min-width: 500px; }
+            th, td { font-size: 14px; padding: 10px; }
+        }
+        @media (max-width: 780px) {
+            .topbar { align-items: flex-start; flex-direction: column; }
+            .tournament-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .section { margin: 12px; padding: 16px; }
+            h1 { font-size: clamp(20px, 6vw, 30px); }
+            h2 { font-size: clamp(18px, 5vw, 24px); }
+            input, select, textarea { font-size: 14px; padding: 8px; max-width: 250px; }
+            button { font-size: 13px; padding: 10px 16px; margin: 5px; }
+            .edit-btn, .delete-btn { width: 35px; height: 35px; font-size: 16px; }
+            table { min-width: 400px; }
+            th, td { font-size: 12px; padding: 8px; }
+            #galleryContainer { height: 600px; max-width: 600px; }
+            #prevImage, #nextImage { width: 40px; height: 40px; font-size: 18px; }
+            #imageCounter { padding: 8px; }
+            #selectAndDownload { padding: 10px 18px; font-size: 12px; }
+        }
+        @media (max-width: 480px) {
+            .section { margin: 8px; padding: 12px; }
+            h1 { font-size: clamp(18px, 7vw, 24px); }
+            h2 { font-size: clamp(16px, 6vw, 20px); }
+            input, select, textarea { font-size: 12px; padding: 6px; max-width: 200px; }
+            button { font-size: 11px; padding: 8px 12px; margin: 4px; }
+            .edit-btn, .delete-btn { width: 30px; height: 30px; font-size: 14px; }
+            table { min-width: 300px; }
+            th, td { font-size: 10px; padding: 6px; }
+            #currentMatchTag { font-size: 14px; }
+            #matchBtns { gap: 6px; }
+            #galleryContainer { height: 400px; max-width: 400px; }
+            #prevImage, #nextImage { width: 36px; height: 36px; font-size: 16px; }
+            #imageCounter { padding: 6px; font-size: 12px; }
+            #selectAndDownload { padding: 8px 14px; font-size: 10px; top: 10px; right: 10px; }
+        }
+        @media (max-width: 360px) {
+            .section { margin: 4px; padding: 8px; }
+            h1 { font-size: clamp(16px, 8vw, 20px); }
+            h2 { font-size: clamp(14px, 7vw, 18px); }
+            input, select, textarea { font-size: 11px; padding: 5px; max-width: 150px; }
+            button { font-size: 10px; padding: 6px 10px; margin: 3px; }
+            .edit-btn, .delete-btn { width: 28px; height: 28px; font-size: 12px; }
+            table { min-width: 250px; }
+            th, td { font-size: 9px; padding: 4px; }
+            #currentMatchTag { font-size: 12px; margin-bottom: 8px; }
+            #matchBtns { gap: 4px; }
+            #galleryContainer { height: 300px; max-width: 300px; }
+            #prevImage, #nextImage { width: 32px; height: 32px; font-size: 14px; }
+            #imageCounter { padding: 4px; font-size: 10px; }
+            #selectAndDownload { padding: 6px 10px; font-size: 9px; top: 5px; right: 5px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <div class="topbar">
+            <div>
+                <p class="brand-kicker">RAM BHAKT ESPORTS</p>
+                <h1>Points Table Tournament Manager</h1>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <a class="home-link" href="index (1).html">Home</a>
+                <a href="admin.html" style="color:#ccc;font-size:11px;text-decoration:none;opacity:0.15;transition:opacity 0.3s;letter-spacing:1px;" onmouseover="this.style.opacity='0.5'" onmouseout="this.style.opacity='0.15'" title="Admin Panel"><i class="fas fa-cog"></i></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="section tournament-grid" id="tournamentSection">
+        <div class="tournament-panel">
+            <h2>Tournament Setup</h2>
+            <label class="field-label" for="tournamentNameInput">Tournament Name</label>
+            <input id="tournamentNameInput" type="text" placeholder="Custom tournament name">
+            <div class="button-row">
+                <button id="createTournamentBtn">Create New</button>
+                <button id="saveTournamentBtn" class="overallBtn">Save / Rename</button>
+            </div>
+            <p style="font-size: 14px; color: #666; line-height: 1.6;">
+                Create separate tournaments, then save teams and matches inside the selected tournament. You can open, edit, or delete them later.
+            </p>
+        </div>
+        <div class="tournament-list-panel">
+            <h2>Saved Tournaments</h2>
+            <div id="tournamentList" class="tournament-list"></div>
+        </div>
+    </div>
+    
+    <div class="section" id="step1Section">
+        <h2>Step 1: Enter Team Names (max 12)</h2>
+        <div id="activeTournamentName">No tournament selected</div>
+        <label for="pasteTeamsTextarea" style="display: block; text-align: left; max-width: 280px; margin: auto; margin-bottom: 8px;">
+            Paste Teams Here (Format: Slot 01 - Team Name)
+        </label>
+        <textarea id="pasteTeamsTextarea" rows="8" style="width: 100%; max-width: 280px; box-sizing: border-box; background: #fff; border: 2px solid #e0e4ec; color: var(--text-dark); border-radius: 8px; padding: 10px;" placeholder="Example:
+01 - Team Death Squad
+02 - Team Nhk Kingdom
+... up to Slot 12"></textarea>
+        <button id="parsePasteBtn">Fill Slots from Paste</button>
+        <div id="teamListInputs"></div>
+        <button id="saveTeamsBtn">Save Team List</button>
+        <button id="goToCalculatorBtn" disabled>Go to Points Calculator</button>
+        <button id="backToTournamentsBtn" class="secondary-btn">Manage Tournaments</button>
+        <p style="font-size: 14px; color: #666;">
+            Enter unique team names. Leave any rows blank.<br>
+            Or paste the slotwise team list above.
+        </p>
+    </div>
+
+    <div class="section hidden" id="step2Section">
+        <h2>Step 2: Points Calculator</h2>
+        <div id="currentMatchTag">Currently Calculating Match 1</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Team Select</th>
+                        <th>Team Edit</th>
+                        <th>Kill Points</th>
+                        <th>Position Points</th>
+                        <th>Booyah</th>
+                        <th>Total Points</th>
+                    </tr>
+                </thead>
+                <tbody id="pointsTableBody"></tbody>
+            </table>
+        </div>
+        <div style="margin-top: 12px;">
+            <button id="generateImageBtn">Generate Leaderboard Image</button>
+            <button id="saveMatchBtn">Save Match</button>
+            <button id="updateMatchBtn" style="display: none;">Confirm Edit</button>
+            <button id="resetAllBtn">Reset All Data</button>
+            <button id="clearInputsBtn">Clear Input Table</button>
+            <button id="startNewMatchBtn">Start New Match</button>
+            <button id="backToTeamsBtn" class="secondary-btn">Back to Team Setup</button>
+        </div>
+        <div id="matchBtns"></div>
+        <button id="overallBtn" class="hidden overallBtn">Show Overall Result</button>
+        <button id="exportExcelBtn" class="hidden">Export to Excel</button>
+        <div id="galleryContainer">
+            <canvas id="leaderboardCanvas" width="768" height="768"></canvas>
+            <div id="galleryNav">
+                <button id="prevImage"><i class="fas fa-chevron-left"></i></button>
+                <span id="imageCounter">1 / 5</span>
+                <button id="nextImage"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <button id="selectAndDownload"><i class="fas fa-download"></i> Select & Download</button>
+        </div>
+        <button id="downloadImageBtn" class="hidden"><i class="fas fa-image"></i> Download Image</button>
+    </div>
+
+    <script>
+
+        
+        const MAX_TEAMS = 12;
+        const positionPointsMap = {1:12, 2:9, 3:8, 4:7, 5:6, 6:5, 7:4, 8:3, 9:2, 10:1, 11:0, 12:0};
+
+        const tournamentSection = document.getElementById('tournamentSection');
+        const tournamentNameInput = document.getElementById('tournamentNameInput');
+        const createTournamentBtn = document.getElementById('createTournamentBtn');
+        const saveTournamentBtn = document.getElementById('saveTournamentBtn');
+        const tournamentListDiv = document.getElementById('tournamentList');
+        const activeTournamentName = document.getElementById('activeTournamentName');
+        const backToTournamentsBtn = document.getElementById('backToTournamentsBtn');
+        const step1Section = document.getElementById('step1Section');
+        const step2Section = document.getElementById('step2Section');
+        const teamListInputsDiv = document.getElementById('teamListInputs');
+        const saveTeamsBtn = document.getElementById('saveTeamsBtn');
+        const goToCalculatorBtn = document.getElementById('goToCalculatorBtn');
+        const pointsTableBody = document.getElementById('pointsTableBody');
+        const generateImageBtn = document.getElementById('generateImageBtn');
+        const saveMatchBtn = document.getElementById('saveMatchBtn');
+        const updateMatchBtn = document.getElementById('updateMatchBtn');
+        const resetAllBtn = document.getElementById('resetAllBtn');
+        const clearInputsBtn = document.getElementById('clearInputsBtn');
+        const startNewMatchBtn = document.getElementById('startNewMatchBtn');
+        const matchBtnsDiv = document.getElementById('matchBtns');
+        const overallBtn = document.getElementById('overallBtn');
+        const downloadImageBtn = document.getElementById('downloadImageBtn');
+        const leaderboardCanvas = document.getElementById('leaderboardCanvas');
+        const ctx = leaderboardCanvas.getContext('2d');
+        const currentMatchTag = document.getElementById('currentMatchTag');
+        const pasteTeamsTextarea = document.getElementById('pasteTeamsTextarea');
+        const parsePasteBtn = document.getElementById('parsePasteBtn');
+        const galleryContainer = document.getElementById('galleryContainer');
+        const prevImageBtn = document.getElementById('prevImage');
+        const nextImageBtn = document.getElementById('nextImage');
+        const imageCounter = document.getElementById('imageCounter');
+        const selectAndDownloadBtn = document.getElementById('selectAndDownload');
+        const exportExcelBtn = document.getElementById('exportExcelBtn');
+
+// Load image configs from admin panel (localStorage + Firebase) or use defaults
+const ADMIN_STORAGE_KEY = 'rbeAdminConfig';
+const FIREBASE_LOCAL_KEY = 'rbeFirebaseConfig';
+const FB_PATH = 'rbeConfig';
+
+function loadImageConfigsFromData(adminData) {
+    if (!adminData || !adminData.images || !adminData.images.length) return null;
+    return adminData.images.map(img => ({
+        src: img.src || './9pm.png',
+        colX: img.colX || [110, 260, 440, 518, 583, 647],
+        startY: img.startY || 233,
+        rowHeight: img.rowHeight || 40,
+        font: img.font || 'bold 16px Arial',
+        textColor: img.textColor || '#ffffff'
+    }));
+}
+
+function loadImageConfigsFromLocal() {
+    try {
+        const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
+        if (raw) return loadImageConfigsFromData(JSON.parse(raw));
+    } catch (e) {}
+    return null;
+}
+
+const DEFAULT_IMAGE_CONFIGS = [
+    { src: './9pm.png', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' },
+    { src: './9pm.png', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' },
+    { src: './9pm.png', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' },
+    { src: './9pm.png', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' },
+    { src: './9pm.png', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' }
+];
+
+function buildVariantConfigs(sourceConfigs) {
+    return sourceConfigs.map(c => ({
+        textColor: c.textColor,
+        font: c.font,
+        colX: c.colX,
+        startY: c.startY,
+        rowHeight: c.rowHeight
+    }));
+}
+
+function buildBackgroundImages(sourceConfigs) {
+    return sourceConfigs.map(config => {
+        const img = new Image();
+        img.src = config.src;
+        return img;
+    });
+}
+
+function applyImageConfigs(configs) {
+    imageConfigs = configs || DEFAULT_IMAGE_CONFIGS;
+    variantConfigs = buildVariantConfigs(imageConfigs);
+    backgroundImages = buildBackgroundImages(imageConfigs);
+}
+
+let imageConfigs = loadImageConfigsFromLocal() || DEFAULT_IMAGE_CONFIGS;
+let variantConfigs = buildVariantConfigs(imageConfigs);
+let backgroundImages = buildBackgroundImages(imageConfigs);
+
+function reloadConfigsFromAdmin() {
+    applyImageConfigs(loadImageConfigsFromLocal());
+}
+
+document.addEventListener('rbeConfigChanged', reloadConfigsFromAdmin);
+
+// ─── Firebase sync (real-time cross-device) ──────────────────
+(function initFirebaseReader() {
+    try {
+        const raw = localStorage.getItem(FIREBASE_LOCAL_KEY);
+        if (!raw) return;
+        const fbCfg = JSON.parse(raw);
+        if (!fbCfg.apiKey || !fbCfg.projectId || !fbCfg.databaseURL) return;
+        const fbApp = firebase.initializeApp({
+            apiKey: fbCfg.apiKey,
+            projectId: fbCfg.projectId,
+            databaseURL: fbCfg.databaseURL,
+            authDomain: fbCfg.projectId + '.firebaseapp.com'
+        }, 'rbeConfigReader');
+        firebase.database(fbApp).ref(FB_PATH).on('value', snap => {
+            const val = snap.val();
+            if (val && val.images && val.images.length) {
+                localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify({ password: val.password || 'admin', images: val.images }));
+                applyImageConfigs(loadImageConfigsFromData(val));
+                if (typeof loadPointsCalculator === 'function') {
+                    loadPointsCalculator();
+                    updateMatchButtons();
+                }
+            }
+        });
+    } catch (e) { console.warn('Firebase sync init failed:', e); }
+})();
+
+
+
+        let editingMatchIdx = null;
+        let galleryImages = [];
+        let currentGalleryIndex = 0;
+        let currentMatchNumber = 1;
+
+        function normalizeTeamName(name) {
+            return name.trim().toUpperCase();
+        }
+
+        const TOURNAMENT_STORAGE_KEY = 'rbeTournaments';
+        const ACTIVE_TOURNAMENT_KEY = 'rbeActiveTournamentId';
+        let activeTournamentId = localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || '';
+
+        function makeTournamentId() {
+            return `tournament_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        }
+
+        function getTournaments() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(TOURNAMENT_STORAGE_KEY) || '[]');
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function saveTournaments(tournaments) {
+            localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(tournaments));
+        }
+
+        function migrateOldDataIfNeeded() {
+            if (getTournaments().length) return;
+            const oldTeams = JSON.parse(localStorage.getItem('teamList') || '[]');
+            const oldMatches = JSON.parse(localStorage.getItem('matches') || '[]');
+            if (!oldTeams.length && !oldMatches.length) return;
+            const legacyTournament = {
+                id: makeTournamentId(),
+                name: 'Imported Tournament',
+                teams: oldTeams,
+                matches: oldMatches,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            saveTournaments([legacyTournament]);
+            setActiveTournament(legacyTournament.id, false);
+        }
+
+        function getActiveTournament() {
+            const tournaments = getTournaments();
+            return tournaments.find(t => t.id === activeTournamentId) || tournaments[0] || null;
+        }
+
+        function setActiveTournament(id, refresh = true) {
+            activeTournamentId = id;
+            localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id);
+            if (refresh) {
+                step2Section.classList.add('hidden');
+                step1Section.classList.remove('hidden');
+                updateTournamentUI();
+            }
+        }
+
+        function saveActiveTournament(updater) {
+            const tournaments = getTournaments();
+            const idx = tournaments.findIndex(t => t.id === activeTournamentId);
+            if (idx === -1) return null;
+            const updated = { ...tournaments[idx] };
+            updater(updated);
+            updated.updatedAt = new Date().toISOString();
+            tournaments[idx] = updated;
+            saveTournaments(tournaments);
+            return updated;
+        }
+
+        function createTournament(name) {
+            const cleanName = (name || '').trim() || `Tournament ${getTournaments().length + 1}`;
+            const tournament = {
+                id: makeTournamentId(),
+                name: cleanName,
+                teams: Array(MAX_TEAMS).fill(''),
+                matches: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            const tournaments = getTournaments();
+            tournaments.unshift(tournament);
+            saveTournaments(tournaments);
+            setActiveTournament(tournament.id, false);
+            step2Section.classList.add('hidden');
+            step1Section.classList.remove('hidden');
+            updateTournamentUI();
+            showCustomPopup('Tournament created.');
+            return tournament;
+        }
+
+        function deleteTournament(id) {
+            const tournament = getTournaments().find(t => t.id === id);
+            if (!tournament) return;
+            if (!confirm(`Delete tournament "${tournament.name}"?`)) return;
+            const tournaments = getTournaments().filter(t => t.id !== id);
+            saveTournaments(tournaments);
+            if (activeTournamentId === id) {
+                activeTournamentId = tournaments[0]?.id || '';
+                localStorage.setItem(ACTIVE_TOURNAMENT_KEY, activeTournamentId);
+            }
+            updateTournamentUI();
+            showCustomPopup('Tournament deleted.');
+        }
+
+        function getTeamList() {
+            return (getActiveTournament()?.teams || []).filter(t => t.trim());
+        }
+
+        function saveTeams(teams) {
+            const active = getActiveTournament();
+            if (!active) {
+                createTournament(tournamentNameInput.value);
+                saveActiveTournament(t => { t.teams = teams; });
+                renderTournamentList();
+                return;
+            }
+            const oldTeams = active.teams || [];
+            const matches = active.matches || [];
+            const renameMap = {};
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                const oldName = (oldTeams[i] || '').trim().toUpperCase();
+                const newName = (teams[i] || '').trim().toUpperCase();
+                if (oldName && oldName !== newName) {
+                    renameMap[oldName] = newName;
+                }
+            }
+            const renameKeys = Object.keys(renameMap);
+            if (renameKeys.length > 0 && matches.length > 0) {
+                const updatedMatches = matches.map(match =>
+                    match.map(entry => {
+                        const normalized = normalizeTeamName(entry.team);
+                        return renameMap[normalized] ? { ...entry, team: renameMap[normalized] } : entry;
+                    })
+                );
+                saveActiveTournament(t => { t.teams = teams; t.matches = updatedMatches; });
+                if (!step2Section.classList.contains('hidden')) {
+                    loadPointsCalculator();
+                    updateMatchButtons();
+                }
+                showCustomPopup('Teams saved. Team names updated in matches.');
+            } else {
+                saveActiveTournament(t => { t.teams = teams; });
+                showCustomPopup('Team list saved to this tournament.');
+            }
+            renderTournamentList();
+        }
+
+        function getSavedMatches() {
+            return getActiveTournament()?.matches || [];
+        }
+
+        function saveMatches(matches) {
+            saveActiveTournament(t => { t.matches = matches; });
+            renderTournamentList();
+        }
+
+        function clearAllData() {
+            saveActiveTournament(t => {
+                t.teams = Array(MAX_TEAMS).fill('');
+                t.matches = [];
+            });
+        }
+
+        function formatDate(value) {
+            if (!value) return 'Never';
+            return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderTournamentList() {
+            const tournaments = getTournaments();
+            tournamentListDiv.innerHTML = '';
+            if (!tournaments.length) {
+                tournamentListDiv.innerHTML = '<p style="color:#666;">No tournaments saved yet.</p>';
+                return;
+            }
+            tournaments.forEach(tournament => {
+                const card = document.createElement('div');
+                card.className = `tournament-card ${tournament.id === activeTournamentId ? 'active' : ''}`;
+                const teamCount = (tournament.teams || []).filter(Boolean).length;
+                const matchCount = (tournament.matches || []).length;
+                card.innerHTML = `
+                    <h3>${tournament.name}</h3>
+                    <div class="tournament-meta">${teamCount} teams | ${matchCount} matches<br>Updated ${formatDate(tournament.updatedAt)}</div>
+                    <div class="tournament-actions">
+                        <button type="button" data-action="open">Open</button>
+                        <button type="button" data-action="rename" class="secondary-btn">Rename</button>
+                        <button type="button" data-action="delete" class="danger-btn">Delete</button>
+                    </div>
+                `;
+                card.querySelector('[data-action="open"]').onclick = () => setActiveTournament(tournament.id);
+                card.querySelector('[data-action="rename"]').onclick = () => {
+                    setActiveTournament(tournament.id, false);
+                    tournamentNameInput.focus();
+                    tournamentNameInput.select();
+                    updateTournamentUI();
+                };
+                card.querySelector('[data-action="delete"]').onclick = () => deleteTournament(tournament.id);
+                tournamentListDiv.appendChild(card);
+            });
+        }
+
+        function updateTournamentUI() {
+            migrateOldDataIfNeeded();
+            const tournaments = getTournaments();
+            if (!activeTournamentId && tournaments[0]) setActiveTournament(tournaments[0].id, false);
+            const active = getActiveTournament();
+            tournamentNameInput.value = active?.name || '';
+            activeTournamentName.textContent = active ? `Active Tournament: ${active.name}` : 'No tournament selected';
+            refreshTeamInputs();
+            if (!step2Section.classList.contains('hidden')) {
+                loadPointsCalculator();
+                updateMatchButtons();
+            }
+            const hasMatches = getSavedMatches().length > 0;
+            overallBtn.classList.toggle('hidden', !hasMatches);
+            exportExcelBtn.classList.toggle('hidden', !hasMatches);
+            renderTournamentList();
+            currentMatchNumber = getSavedMatches().length + 1;
+            updateCurrentMatchTag();
+        }
+
+        function refreshTeamInputs() {
+            let teams = getActiveTournament()?.teams || [];
+            if (teams.length < MAX_TEAMS) {
+                for (let i = teams.length; i < MAX_TEAMS; i++) {
+                    teams.push('');
+                }
+            }
+            teamListInputsDiv.innerHTML = '';
+            teams.forEach((t, i) => {
+                let input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = `Team ${i + 1}`;
+                input.value = t;
+                input.id = `teamInput${i}`;
+                input.addEventListener('input', validateTeamListInputs);
+                teamListInputsDiv.appendChild(input);
+                teamListInputsDiv.appendChild(document.createElement('br'));
+            });
+            validateTeamListInputs();
+        }
+
+        function validateTeamListInputs() {
+            const teams = [];
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                let val = document.getElementById(`teamInput${i}`).value.trim();
+                if (val) teams.push(val.toUpperCase());
+            }
+            goToCalculatorBtn.disabled = new Set(teams).size < 2;
+        }
+
+        createTournamentBtn.onclick = () => {
+            createTournament(tournamentNameInput.value);
+        };
+
+        saveTournamentBtn.onclick = () => {
+            const active = getActiveTournament();
+            if (!active) {
+                createTournament(tournamentNameInput.value);
+                return;
+            }
+            const nextName = tournamentNameInput.value.trim();
+            if (!nextName) return showCustomPopup('Enter tournament name.');
+            saveActiveTournament(t => { t.name = nextName; });
+            updateTournamentUI();
+            showCustomPopup('Tournament saved.');
+        };
+
+        backToTournamentsBtn.onclick = () => {
+            tournamentSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        const backToTeamsBtn = document.getElementById('backToTeamsBtn');
+        backToTeamsBtn.onclick = () => {
+            step2Section.classList.add('hidden');
+            step1Section.classList.remove('hidden');
+        };
+
+        saveTeamsBtn.onclick = () => {
+            let teams = [];
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                teams.push(document.getElementById(`teamInput${i}`).value.trim().toUpperCase());
+            }
+            saveTeams(teams);
+            validateTeamListInputs();
+        };
+
+        goToCalculatorBtn.onclick = () => {
+            if (!getActiveTournament()) return showCustomPopup('Create or open a tournament first.');
+            step1Section.classList.add('hidden');
+            step2Section.classList.remove('hidden');
+            loadPointsCalculator();
+            updateMatchButtons();
+            updateCurrentMatchTag();
+        };
+
+        function updateCurrentMatchTag() {
+            currentMatchTag.textContent = `Currently Calculating Match ${currentMatchNumber}`;
+        }
+
+        function loadPointsCalculator() {
+            editingMatchIdx = null;
+            saveMatchBtn.style.display = 'inline-block';
+            updateMatchBtn.style.display = 'none';
+            const teams = getTeamList();
+            pointsTableBody.innerHTML = '';
+            for (let pos = 1; pos <= MAX_TEAMS; pos++) {
+                let tr = document.createElement('tr');
+                let tdPos = document.createElement('td');
+                tdPos.textContent = pos;
+                tr.appendChild(tdPos);
+
+                let tdSelect = document.createElement('td');
+                let select = document.createElement('select');
+                select.className = 'team-select';
+                select.id = `teamSelect${pos}`;
+                select.innerHTML = '<option value="">Select Team</option>';
+                teams.forEach((t, i) => {
+                    let opt = document.createElement('option');
+                    opt.value = t;
+                     opt.textContent = `${i + 1}. ${t.replace(/^>\s*/, '')}`;
+                    select.appendChild(opt);
+                });
+                tdSelect.appendChild(select);
+                tr.appendChild(tdSelect);
+
+                let tdEdit = document.createElement('td');
+                let editInput = document.createElement('input');
+                editInput.type = 'text';
+                editInput.className = 'team-edit';
+                editInput.id = `teamEdit${pos}`;
+                tdEdit.appendChild(editInput);
+                tr.appendChild(tdEdit);
+
+                let tdKill = document.createElement('td');
+                let killInput = document.createElement('input');
+                killInput.type = 'number';
+                killInput.min = 0;
+                killInput.max = 100;
+                killInput.value = 0;
+                killInput.id = `killPoints${pos}`;
+                tdKill.appendChild(killInput);
+                tr.appendChild(tdKill);
+
+                let tdPosPts = document.createElement('td');
+                tdPosPts.id = `posPoints${pos}`;
+                tdPosPts.textContent = positionPointsMap[pos] || 0;
+                tr.appendChild(tdPosPts);
+
+                let tdBooyah = document.createElement('td');
+                tdBooyah.id = `booyah${pos}`;
+                tdBooyah.textContent = '00';
+                tr.appendChild(tdBooyah);
+
+                let tdTotal = document.createElement('td');
+                tdTotal.id = `totalPoints${pos}`;
+                tdTotal.textContent = 0;
+                tr.appendChild(tdTotal);
+
+                select.addEventListener('change', () => {
+                    editInput.value = select.value;
+                    updateDropdownOptions();
+                });
+                editInput.addEventListener('input', () => {
+                    if (editInput.value && editInput.value !== select.value) {
+                        select.value = editInput.value;
+                    }
+                    updateDropdownOptions();
+                });
+                killInput.addEventListener('input', () => {
+                    let killPts = parseInt(killInput.value) || 0;
+                    let posPts = positionPointsMap[pos] || 0;
+                    tdTotal.textContent = killPts + posPts;
+                });
+
+                pointsTableBody.appendChild(tr);
+            }
+            updateDropdownOptions();
+        }
+
+        function updateDropdownOptions() {
+            const selects = [];
+            const edits = [];
+            for (let i = 1; i <= MAX_TEAMS; i++) {
+                selects.push(document.getElementById(`teamSelect${i}`));
+                edits.push(document.getElementById(`teamEdit${i}`));
+            }
+
+            // Gather currently used teams from both selects and textboxes, but skip blanks
+            const usedTeams = [];
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                const selVal = selects[i].value.trim();
+                const editVal = edits[i].value.trim();
+                if (editVal) {
+                    usedTeams.push(editVal.toUpperCase());
+                } else if (selVal) {
+                    usedTeams.push(selVal.toUpperCase());
+                }
+            }
+
+            // Restrict selects - if already used elsewhere and not active here, disable
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                for (let opt of selects[i].options) {
+                    if (!opt.value) continue;
+                    // Don't disable currently selected value
+                    const isCurrent = opt.value === selects[i].value || opt.value === edits[i].value;
+                    const presentElsewhere = usedTeams.includes(opt.value.toUpperCase()) && !isCurrent;
+                    opt.disabled = presentElsewhere;
+                }
+            }
+
+            // Restrict manual textbox editing - if user types a team name already used elsewhere, mark input as invalid and block save
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                const editBox = edits[i];
+                const val = editBox.value.trim().toUpperCase();
+                if (val && usedTeams.filter(t => t === val).length > 1) {
+                    editBox.setCustomValidity('This team is already used in another position');
+                    editBox.style.borderColor = '#db2a37';
+                } else {
+                    editBox.setCustomValidity('');
+                    editBox.style.borderColor = '';
+                }
+            }
+        }
+
+        function hasDuplicateTeams() {
+            const names = [];
+            for (let pos = 1; pos <= MAX_TEAMS; pos++) {
+                let team = document.getElementById(`teamEdit${pos}`).value.trim().toUpperCase();
+                if (team) names.push(team);
+            }
+            return new Set(names).size !== names.length;
+        }
+
+        function getCurrentMatchData() {
+            let data = [];
+            for (let pos = 1; pos <= MAX_TEAMS; pos++) {
+                let team = document.getElementById(`teamEdit${pos}`).value.trim();
+                if (!team) continue;
+                team = team.replace(/^>\s*/, '');
+                let killPts = parseInt(document.getElementById(`killPoints${pos}`).value) || 0;
+                let posPts = positionPointsMap[pos] || 0;
+                let booyahPts = pos === 1 ? 1 : 0;
+                let total = killPts + posPts;
+                data.push({
+                    rank: pos.toString(),
+                    team,
+                    booyah: booyahPts,
+                    pp: posPts,
+                    kp: killPts,
+                    total
+                });
+            }
+            return data;
+        }
+
+
+
+       function generateVariant(matchData, config, variantId, callback) {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = 768;
+    offscreen.height = 768;
+    const offCtx = offscreen.getContext('2d');
+    
+    const img = new Image();
+    img.src = config.src;
+    
+    const draw = () => {
+        offCtx.clearRect(0, 0, 768, 768);
+        offCtx.drawImage(img, 0, 0, 768, 768);
+        offCtx.fillStyle = config.textColor;
+        offCtx.font = config.font;
+        offCtx.textBaseline = 'middle';
+        offCtx.textAlign = 'center';
+        
+        const colX = config.colX;
+        const startY = config.startY;
+        const rowHeight = config.rowHeight;
+        
+        matchData.sort((a, b) => b.total - a.total || b.booyah - a.booyah || b.kp - a.kp || b.pp - a.pp);
+        
+        matchData.slice(0, 12).forEach((team, i) => {
+            const y = startY + i * rowHeight;
+            offCtx.fillText(i + 1, colX[0], y);
+            offCtx.fillText(team.team, colX[1], y);
+            const booyahText = team.booyah > 0
+    ? String(team.booyah).padStart(2, '0')
+    : '';
+offCtx.fillText(booyahText, colX[2], y);
+
+
+            offCtx.fillText(String(team.pp).padStart(2, '0'), colX[3], y);
+            offCtx.fillText(String(team.kp).padStart(2, '0'), colX[4], y);
+            offCtx.fillText(String(team.total).padStart(2, '0'), colX[5], y);
+        });
+        
+        galleryImages.push({ dataURL: offscreen.toDataURL('image/png'), config });
+        callback();
+    };
+    
+    if (img.complete) {
+        draw();
+    } else {
+        img.onload = draw;
+        img.onerror = () => callback();
+    }
+}
+
+        function showGallery() {
+            currentGalleryIndex = 0;
+            galleryContainer.style.display = 'block';
+            downloadImageBtn.style.display = 'none';
+            updateGalleryDisplay();
+        }
+
+        function hideGallery() {
+            galleryContainer.style.display = 'none';
+        }
+
+        function updateGalleryDisplay() {
+            const img = new Image();
+            img.onload = () => {
+                ctx.clearRect(0, 0, 768, 768);
+                ctx.drawImage(img, 0, 0, 768, 768);
+            };
+            img.src = galleryImages[currentGalleryIndex].dataURL;
+            imageCounter.textContent = `${currentGalleryIndex + 1} / ${imageConfigs.length}`;
+
+        }
+
+        function generateGallery(matchData) {
+            galleryImages = [];
+            let generated = 0;
+
+            imageConfigs.forEach((config, index) => {
+                generateVariant(matchData, config, index, () => {
+                    generated++;
+                    if (generated === imageConfigs.length) {
+                        showGallery();
+                    }
+                });
+            });
+        }
+
+        generateImageBtn.onclick = () => {
+            const matchData = getCurrentMatchData();
+            if (matchData.length === 0) return showCustomPopup('Enter at least one team with points');
+            if (hasDuplicateTeams()) return showCustomPopup('Duplicate team detected!');
+
+            generateGallery(matchData);
+        };
+
+
+        prevImageBtn.onclick = () => {
+            currentGalleryIndex = (currentGalleryIndex - 1 + imageConfigs.length) % imageConfigs.length;
+            updateGalleryDisplay();
+        };
+
+        nextImageBtn.onclick = () => {
+            currentGalleryIndex = (currentGalleryIndex + 1) % imageConfigs.length;
+            updateGalleryDisplay();
+        };
+
+        selectAndDownloadBtn.onclick = () => {
+            const url = galleryImages[currentGalleryIndex].dataURL;
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Match${currentMatchNumber}_Variant${currentGalleryIndex + 1}_STANDINGS.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+
+        downloadImageBtn.onclick = () => {
+            const url = leaderboardCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Match${currentMatchNumber}_Preview_STANDINGS.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+
+        // Touch/swipe support
+        let startX = 0;
+        leaderboardCanvas.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+        });
+        leaderboardCanvas.addEventListener('touchend', (e) => {
+            const endX = e.changedTouches[0].clientX;
+            if (Math.abs(startX - endX) > 50) {
+                if (startX > endX) {
+                    nextImageBtn.click();
+                } else {
+                    prevImageBtn.click();
+                }
+            }
+        });
+
+        // SAVE MATCH AND CLEAR TABLE
+        saveMatchBtn.onclick = () => {
+            if (hasDuplicateTeams()) {
+                showCustomPopup('Duplicate team detected! Please ensure each team only appears once.');
+                return;
+            }
+            const matchData = getCurrentMatchData();
+            if (matchData.length === 0) {
+                showCustomPopup('Enter points to save match');
+                return;
+            }
+            let matches = getSavedMatches();
+            matches.push(matchData);
+            saveMatches(matches);
+            showCustomPopup('Match saved');
+            loadPointsCalculator();
+            currentMatchNumber = matches.length + 1;
+            updateCurrentMatchTag();
+            updateMatchButtons();
+            overallBtn.classList.remove('hidden');
+            exportExcelBtn.classList.remove('hidden');
+            clearInputsTable();
+            galleryContainer.style.display = 'none';
+        };
+
+        // EDIT MATCH
+        updateMatchBtn.onclick = () => {
+            if (hasDuplicateTeams()) {
+                showCustomPopup('Duplicate team detected! Please ensure each team only appears once.');
+                return;
+            }
+            if (editingMatchIdx === null) return;
+            const matchData = getCurrentMatchData();
+            if (matchData.length === 0) {
+                showCustomPopup('Enter points to update match');
+                return;
+            }
+            let matches = getSavedMatches();
+            const editedIdx = editingMatchIdx;
+            matches[editedIdx] = matchData;
+            saveMatches(matches);
+            showCustomPopup('Match updated!');
+            editingMatchIdx = null;
+            saveMatchBtn.style.display = 'inline-block';
+            updateMatchBtn.style.display = 'none';
+            updateMatchButtons();
+            currentMatchNumber = editedIdx + 1;
+            updateCurrentMatchTag();
+            clearInputsTable();
+            galleryContainer.style.display = 'none';
+        };
+
+        // CLEAR INPUT TABLE BUTTON
+        clearInputsBtn.onclick = () => {
+            editingMatchIdx = null;
+            saveMatchBtn.style.display = 'inline-block';
+            updateMatchBtn.style.display = 'none';
+            clearInputsTable();
+        };
+
+        function clearInputsTable() {
+            for (let pos = 1; pos <= MAX_TEAMS; pos++) {
+                document.getElementById(`teamSelect${pos}`).value = '';
+                document.getElementById(`teamEdit${pos}`).value = '';
+                document.getElementById(`killPoints${pos}`).value = 0;
+                document.getElementById(`posPoints${pos}`).textContent = positionPointsMap[pos] || 0;
+                document.getElementById(`booyah${pos}`).textContent = '00';
+                document.getElementById(`totalPoints${pos}`).textContent = 0;
+            }
+        }
+
+        // START NEW MATCH BUTTON
+        startNewMatchBtn.onclick = () => {
+            editingMatchIdx = null;
+            saveMatchBtn.style.display = 'inline-block';
+            updateMatchBtn.style.display = 'none';
+            currentMatchNumber = getSavedMatches().length + 1;
+            updateCurrentMatchTag();
+            clearInputsTable();
+            galleryContainer.style.display = 'none';
+        };
+
+        // MATCH BUTTONS INCLUDING DELETE
+        function updateMatchButtons() {
+            const matches = getSavedMatches();
+            matchBtnsDiv.innerHTML = '';
+            matches.forEach((_, idx) => {
+                const btn = document.createElement('button');
+                btn.textContent = `Match ${idx + 1}`;
+                btn.onclick = () => loadMatch(idx, false);
+                matchBtnsDiv.appendChild(btn);
+
+                const editBtn = document.createElement('button');
+                editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+                editBtn.className = 'edit-btn';
+                editBtn.title = 'Edit this match';
+                editBtn.onclick = () => loadMatch(idx, true);
+                matchBtnsDiv.appendChild(editBtn);
+
+                // DELETE BUTTON
+                const delBtn = document.createElement('button');
+                delBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                delBtn.className = 'delete-btn';
+                delBtn.title = 'Delete this match';
+                delBtn.onclick = () => {
+                    if (confirm(`Delete Match ${idx + 1}?`)) {
+                        deleteMatch(idx);
+                    }
+                };
+                matchBtnsDiv.appendChild(delBtn);
+            });
+        }
+
+        function deleteMatch(idx) {
+            let matches = getSavedMatches();
+            if (idx < 0 || idx >= matches.length) return;
+            matches.splice(idx, 1);
+            saveMatches(matches);
+            showCustomPopup('Match deleted.');
+            currentMatchNumber = matches.length + 1;
+            updateMatchButtons();
+            updateCurrentMatchTag();
+            clearInputsTable();
+            galleryContainer.style.display = 'none';
+            const hasMatches = getSavedMatches().length > 0;
+            overallBtn.classList.toggle('hidden', !hasMatches);
+            exportExcelBtn.classList.toggle('hidden', !hasMatches);
+        }
+
+        // LOAD MATCH with CORRECT GAP HANDLING
+        function loadMatch(idx, isEdit) {
+            const matches = getSavedMatches();
+            if (idx >= matches.length) return;
+            const match = matches[idx];
+
+            currentMatchNumber = idx + 1;
+            updateCurrentMatchTag();
+
+            // Clear all inputs first
+            clearInputsTable();
+
+            // Fill based on rank (preserve gaps)
+            match.forEach(entry => {
+                let pos = parseInt(entry.rank, 10);
+                let select = document.getElementById(`teamSelect${pos}`);
+                if (!Array.from(select.options).some(opt => opt.value === entry.team)) {
+                    let opt = document.createElement('option');
+                    opt.value = entry.team;
+                    opt.textContent = entry.team;
+                    select.appendChild(opt);
+                }
+                select.value = entry.team;
+                document.getElementById(`teamEdit${pos}`).value = entry.team;
+                document.getElementById(`killPoints${pos}`).value = entry.kp;
+                document.getElementById(`posPoints${pos}`).textContent = entry.pp;
+                document.getElementById(`booyah${pos}`).textContent = entry.booyah ? String(entry.booyah).padStart(2, '0') : '00';
+                document.getElementById(`totalPoints${pos}`).textContent = entry.total;
+            });
+
+            renderLeaderboardImage(match);
+
+            if (isEdit) {
+                editingMatchIdx = idx;
+                saveMatchBtn.style.display = 'none';
+                updateMatchBtn.style.display = 'inline-block';
+            } else {
+                editingMatchIdx = null;
+                saveMatchBtn.style.display = 'inline-block';
+                updateMatchBtn.style.display = 'none';
+            }
+        }
+
+        function renderLeaderboardImage(matchData) {
+    const config = variantConfigs[0]; // Use first layout for preview
+    const draw = () => {
+        ctx.clearRect(0, 0, leaderboardCanvas.width, leaderboardCanvas.height);
+        ctx.drawImage(backgroundImages[0], 0, 0, leaderboardCanvas.width, leaderboardCanvas.height);
+        ctx.fillStyle = config.textColor;
+        ctx.font = config.font;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        const colX = config.colX;
+        const startY = config.startY;
+        const rowHeight = config.rowHeight;
+
+        matchData.sort((a, b) =>
+            b.total - a.total || b.booyah - a.booyah || b.kp - a.kp || b.pp - a.pp
+        );
+
+        matchData.forEach((team, i) => {
+            const y = startY + i * rowHeight;
+            ctx.fillText(i + 1, colX[0], y);
+            ctx.fillText(team.team, colX[1], y);
+            ctx.fillText(String(team.booyah).padStart(2, '0'), colX[2], y);
+            ctx.fillText(String(team.pp).padStart(2, '0'), colX[3], y);
+            ctx.fillText(String(team.kp).padStart(2, '0'), colX[4], y);
+            ctx.fillText(String(team.total).padStart(2, '0'), colX[5], y);
+        });
+    };
+
+    if (backgroundImages[0].complete) {
+        draw();
+    } else {
+        backgroundImages[0].onload = draw;
+    }
+}
+
+
+        // RESET ALL
+        resetAllBtn.onclick = () => {
+            if (confirm('Clear teams and matches for this tournament?')) {
+                clearAllData();
+                updateTournamentUI();
+                clearInputsTable();
+                galleryContainer.style.display = 'none';
+                showCustomPopup('Tournament data cleared.');
+            }
+        };
+
+        // OVERALL STANDINGS
+        overallBtn.onclick = () => {
+            const matches = getSavedMatches();
+            if (matches.length === 0) {
+                showCustomPopup('No matches saved');
+                return;
+            }
+            const teams = getTeamList();
+            const totals = {};
+            teams.forEach(t => {
+                totals[normalizeTeamName(t)] = { team: t, total: 0, booyah: 0, kp: 0, pp: 0 };
+            });
+            matches.forEach(m => {
+                m.forEach(e => {
+                    let key = normalizeTeamName(e.team);
+                    if (!totals[key]) {
+                        totals[key] = { team: e.team, total: 0, booyah: 0, kp: 0, pp: 0 };
+                    }
+                    totals[key].total += e.total;
+                    totals[key].booyah += e.booyah;
+                    totals[key].kp += e.kp;
+                    totals[key].pp += e.pp;
+                });
+            });
+            const overallData = Object.values(totals);
+            generateGallery(overallData); // Generate gallery with overall data
+            currentMatchNumber = 'Overall';
+            updateCurrentMatchTag();
+        };
+
+        // EXPORT TO EXCEL
+        exportExcelBtn.onclick = () => {
+            const matches = getSavedMatches();
+            if (matches.length === 0) {
+                showCustomPopup('No matches saved');
+                return;
+            }
+            const teams = getTeamList();
+            const totals = {};
+            teams.forEach(t => {
+                totals[normalizeTeamName(t)] = { team: t, total: 0, booyah: 0, kp: 0, pp: 0 };
+            });
+            matches.forEach(m => {
+                m.forEach(e => {
+                    let key = normalizeTeamName(e.team);
+                    if (!totals[key]) {
+                        totals[key] = { team: e.team, total: 0, booyah: 0, kp: 0, pp: 0 };
+                    }
+                    totals[key].total += e.total;
+                    totals[key].booyah += e.booyah;
+                    totals[key].kp += e.kp;
+                    totals[key].pp += e.pp;
+                });
+            });
+            const overallData = Object.values(totals).sort((a, b) => b.total - a.total || b.booyah - a.booyah || b.kp - a.kp || b.pp - a.pp);
+
+            // Prepare data for Excel
+            const excelData = overallData.map((team, index) => ({
+                Rank: index + 1,
+                Team: team.team,
+                Total: team.total,
+                Booyah: team.booyah,
+                'Kill Points': team.kp,
+                'Position Points': team.pp
+            }));
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(excelData);
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Overall Standings');
+
+            // Download file
+            const exportName = (getActiveTournament()?.name || 'Esports').replace(/[^a-z0-9]/gi, '_') + '_Standings.xlsx';
+            XLSX.writeFile(wb, exportName);
+            showCustomPopup('Excel file exported successfully!');
+        };
+
+        // PASTE-TO-FILL FUNCTIONALITY with TEAM removal and UPPERCASE
+        function cleanTeamName(teamName) {
+            // Remove "TEAM" from beginning if the name has more than 2 words
+            let words = teamName.trim().split(' ');
+            if (words.length > 2 && words[0].toUpperCase() === 'TEAM') {
+                teamName = words.slice(1).join(' ');
+            }
+            return teamName.trim().toUpperCase();
+        }
+
+        function parsePasteToTeams(pasteText) {
+            // Regex to extract slot number (1-12) and team name
+            const lines = pasteText.split('\n');
+            const teams = Array(MAX_TEAMS).fill('');
+            const slotRegex = /(?:Slot\s*)?(\d+)\s*-(?:>|)?\s*(.+)/i;
+
+            for (let line of lines) {
+                line = line.trim();
+                const match = line.match(slotRegex);
+                if (match) {
+                    let slotNum = parseInt(match[1], 10);
+                    let teamName = cleanTeamName(match[2].trim());
+                    if (slotNum >= 1 && slotNum <= MAX_TEAMS) {
+                        teams[slotNum - 1] = teamName;
+                    }
+                }
+            }
+            return teams;
+        }
+
+        parsePasteBtn.onclick = () => {
+            const pasteText = pasteTeamsTextarea.value;
+            if (!pasteText.trim()) {
+                showCustomPopup('Please paste team list in correct format.');
+                return;
+            }
+            const parsedTeams = parsePasteToTeams(pasteText);
+            for (let i = 0; i < MAX_TEAMS; i++) {
+                document.getElementById(`teamInput${i}`).value = parsedTeams[i];
+            }
+            validateTeamListInputs();
+            showCustomPopup('Teams filled from pasted data.');
+        };
+
+        // Custom Animated Pop-up Functions
+        function showCustomPopup(message) {
+            // Remove any existing popup
+            const existingPopup = document.querySelector('.custom-popup');
+            const existingOverlay = document.querySelector('.popup-overlay');
+            if (existingPopup) existingPopup.remove();
+            if (existingOverlay) existingOverlay.remove();
+
+            // Create overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'popup-overlay';
+            document.body.appendChild(overlay);
+
+            // Create popup
+            const popup = document.createElement('div');
+            popup.className = 'custom-popup';
+            popup.textContent = message;
+            document.body.appendChild(popup);
+
+            // Show with animation
+            setTimeout(() => {
+                overlay.classList.add('show');
+                popup.classList.add('show');
+            }, 10);
+
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                hideCustomPopup();
+            }, 3000);
+
+            // Click overlay to hide
+            overlay.onclick = hideCustomPopup;
+        }
+
+        function hideCustomPopup() {
+            const popup = document.querySelector('.custom-popup');
+            const overlay = document.querySelector('.popup-overlay');
+            if (popup) {
+                popup.classList.remove('show');
+                popup.classList.add('hide');
+            }
+            if (overlay) {
+                overlay.classList.remove('show');
+            }
+            setTimeout(() => {
+                if (popup) popup.remove();
+                if (overlay) overlay.remove();
+            }, 300);
+        }
+
+        function showCustomConfirm(message, callback) {
+            // Remove any existing popup
+            const existingPopup = document.querySelector('.custom-popup');
+            const existingOverlay = document.querySelector('.popup-overlay');
+            if (existingPopup) existingPopup.remove();
+            if (existingOverlay) existingOverlay.remove();
+
+            // Create overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'popup-overlay';
+            document.body.appendChild(overlay);
+
+            // Create popup
+            const popup = document.createElement('div');
+            popup.className = 'custom-popup confirm-popup';
+            document.body.appendChild(popup);
+
+            // Add message
+            const messageDiv = document.createElement('div');
+            messageDiv.textContent = message;
+            messageDiv.style.marginBottom = '20px';
+            popup.appendChild(messageDiv);
+
+            // Add buttons
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.display = 'flex';
+            buttonContainer.style.justifyContent = 'center';
+            buttonContainer.style.gap = '10px';
+
+            const okBtn = document.createElement('button');
+            okBtn.textContent = 'OK';
+            okBtn.style.padding = '10px 20px';
+            okBtn.style.background = 'linear-gradient(45deg, #00ff88, #00cc66)';
+            okBtn.style.border = 'none';
+            okBtn.style.borderRadius = '8px';
+            okBtn.style.color = '#000';
+            okBtn.style.cursor = 'pointer';
+            okBtn.style.fontWeight = 'bold';
+            okBtn.onclick = () => {
+                hideCustomPopup();
+                callback(true);
+            };
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.padding = '10px 20px';
+            cancelBtn.style.background = 'linear-gradient(45deg, #ff0040, #cc0033)';
+            cancelBtn.style.border = 'none';
+            cancelBtn.style.borderRadius = '8px';
+            cancelBtn.style.color = '#fff';
+            cancelBtn.style.cursor = 'pointer';
+            cancelBtn.style.fontWeight = 'bold';
+            cancelBtn.onclick = () => {
+                hideCustomPopup();
+                callback(false);
+            };
+
+            buttonContainer.appendChild(okBtn);
+            buttonContainer.appendChild(cancelBtn);
+            popup.appendChild(buttonContainer);
+
+            // Show with animation
+            setTimeout(() => {
+                overlay.classList.add('show');
+                popup.classList.add('show');
+            }, 10);
+
+            // Click overlay to cancel
+            overlay.onclick = () => {
+                hideCustomPopup();
+                callback(false);
+            };
+        }
+
+        // Initialize
+        migrateOldDataIfNeeded();
+        updateTournamentUI();
+        backgroundImages.forEach(img => { img.onerror = () => console.warn('Background image failed to load:', img.src); });
+    </script>
+</body>
+</html>
+
+
+
+
+

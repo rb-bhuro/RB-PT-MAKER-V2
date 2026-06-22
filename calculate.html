@@ -8,6 +8,14 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script>
+    // ─── PUBLIC FIREBASE CONFIG ──────────────────────────────
+    // Paste your Firebase credentials below so ALL users see admin uploads.
+    // Get these from Firebase Console → Project Settings → General → Your apps → Web app.
+    // Leave as null (default) to fall back to localStorage config (admin device only).
+    // After changing, redeploy to Netlify.
+    const PUBLIC_FIREBASE_CONFIG = null; // { apiKey: '...', projectId: '...', databaseURL: 'https://...firebaseio.com' }
+    </script>
     <style>
         :root {
             --neon-green: #00d084;
@@ -580,7 +588,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
                 <a class="home-link" href="index.html">Home</a>
-                <a href="admin.html" style="color:#ccc;font-size:11px;text-decoration:none;opacity:0.15;transition:opacity 0.3s;letter-spacing:1px;" onmouseover="this.style.opacity='0.5'" onmouseout="this.style.opacity='0.15'" title="Admin Panel"><i class="fas fa-cog"></i></a>
+                <a href="index.html" style="color:#ccc;font-size:11px;text-decoration:none;opacity:0.15;transition:opacity 0.3s;letter-spacing:1px;" onmouseover="this.style.opacity='0.5'" onmouseout="this.style.opacity='0.15'" title="Admin Panel"><i class="fas fa-cog"></i></a>
             </div>
         </div>
     </div>
@@ -778,10 +786,14 @@ document.addEventListener('rbeConfigChanged', reloadConfigsFromAdmin);
 // ─── Firebase sync (real-time cross-device) ──────────────────
 (function initFirebaseReader() {
     try {
-        const raw = localStorage.getItem(FIREBASE_LOCAL_KEY);
-        if (!raw) return;
-        const fbCfg = JSON.parse(raw);
-        if (!fbCfg.apiKey || !fbCfg.projectId || !fbCfg.databaseURL) return;
+        // Priority 1: hardcoded PUBLIC_FIREBASE_CONFIG (works for ALL users)
+        // Priority 2: localStorage rbeFirebaseConfig (admin's own device only)
+        let fbCfg = (typeof PUBLIC_FIREBASE_CONFIG !== 'undefined' && PUBLIC_FIREBASE_CONFIG) || null;
+        if (!fbCfg) {
+            const raw = localStorage.getItem(FIREBASE_LOCAL_KEY);
+            if (raw) fbCfg = JSON.parse(raw);
+        }
+        if (!fbCfg || !fbCfg.apiKey || !fbCfg.projectId || !fbCfg.databaseURL) return;
         const fbApp = firebase.initializeApp({
             apiKey: fbCfg.apiKey,
             projectId: fbCfg.projectId,

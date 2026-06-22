@@ -329,6 +329,11 @@
                 <button class="btn-pink btn-sm" onclick="disconnectFirebase()"><i class="fas fa-unlink"></i> Disconnect</button>
             </div>
             <div class="sync-status" id="syncStatus"><span class="disconnected">Not connected</span> &mdash; configure Firebase above to sync across all devices in real time.</div>
+            <div style="margin-top:10px;">
+                <button class="btn-purple btn-sm" onclick="generateEmbedCode()"><i class="fas fa-code"></i> Get Embed Code</button>
+                <span style="font-size:11px;color:var(--text-soft);margin-left:6px;">Paste into <code>calculate.html</code> so all users see your uploads.</span>
+                <pre id="embedCodeOutput" style="display:none;margin-top:8px;background:#f0f2f5;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;text-align:left;white-space:pre-wrap;word-break:break-all;border:1px solid var(--border);font-family:monospace;"></pre>
+            </div>
         </div>
 
         <div class="change-pwd-section">
@@ -497,6 +502,25 @@
         } catch (e) { console.warn('Firebase push failed:', e); }
     }
 
+    function generateEmbedCode() {
+        const cfg = getFirebaseConfig();
+        if (!cfg || !cfg.apiKey || !cfg.projectId || !cfg.databaseURL) {
+            showError('Configure Firebase first (API Key, Project ID, Database URL).');
+            return;
+        }
+        const snippet = 'const PUBLIC_FIREBASE_CONFIG = ' + JSON.stringify({ apiKey: cfg.apiKey, projectId: cfg.projectId, databaseURL: cfg.databaseURL }, null, 2) + ';';
+        const el = document.getElementById('embedCodeOutput');
+        el.textContent = snippet;
+        el.style.display = 'block';
+        // auto-select for easy copy
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        showSuccess('Embed code generated. Copy it and paste into calculate.html and index.html, then redeploy.');
+    }
+
     function listenFirebase(callback) {
         const cfg = getFirebaseConfig();
         if (!cfg) { callback(null); return; }
@@ -514,7 +538,7 @@
     // ─── Config ────────────────────────────────────────────────
     function getDefaultConfig() {
         return {
-            password: 'Ranganiom77',
+            password: 'admin',
             images: [
                 { id: 'img_def_1', name: 'Template 1', src: '', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' },
                 { id: 'img_def_2', name: 'Template 2', src: '', colX: [110, 260, 440, 518, 583, 647], startY: 233, rowHeight: 40, font: 'bold 16px Arial', textColor: '#ffffff' },

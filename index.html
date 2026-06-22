@@ -22,6 +22,14 @@
 <!-- Firebase (cross-device sync support) -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script>
+// ─── PUBLIC FIREBASE CONFIG ──────────────────────────────
+// Paste your Firebase credentials below so ALL users see admin uploads.
+// Get these from Firebase Console → Project Settings → General → Your apps → Web app.
+// Leave as null (default) to fall back to localStorage config (admin device only).
+// After changing, redeploy to Netlify.
+const PUBLIC_FIREBASE_CONFIG = null; // { apiKey: '...', projectId: '...', databaseURL: 'https://...firebaseio.com' }
+</script>
 
 <style>
   :root {
@@ -413,7 +421,7 @@
       <a href="https://www.youtube.com/@rb_esports7" target="_blank"><i class="fab fa-youtube"></i></a>
     </div>
     <div style="margin-top:30px;opacity:0.15;transition:opacity 0.3s;" onmouseover="this.style.opacity='0.5'" onmouseout="this.style.opacity='0.15'">
-      <a href="index.html" style="color:#666;font-size:11px;text-decoration:none;letter-spacing:2px;text-transform:uppercase;"><i class="fas fa-cog"></i> Made by RB BHURO</a>
+      <a href="index.html" style="color:#666;font-size:11px;text-decoration:none;letter-spacing:2px;text-transform:uppercase;"><i class="fas fa-cog"></i> Build By RAM BHAKT ESPORTS</a>
     </div>
   </div>
 
